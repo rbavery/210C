@@ -1,0 +1,17 @@
+Earthquake dataset, downloaded by Bill Menke, April 7, 2015
+
+I downloaded earthquake data from the US Geological Survey's
+database http://earthquake.usgs.gov/earthquakes/search/ on
+April 7, 2015.  I set the search parameters as follows:
+    magnitde range: 5 - 10
+    depth range: 0 - 50 km
+    date range: 01/01/2000 - 12/31/2010
+    order by time
+The orininal output file is called eartqhuakes.csv
+I stipped out a list of magnitues into the file
+    earthquake_magnitudes.txt
+
+I also looked up the Gutenberg-Richter magnitude-energy relation,
+which is:
+   log10(E in ergs) = 1.5 MW + 11.8
+(note 1 erg = 10^-7 joules)

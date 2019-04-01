@@ -1,0 +1,245 @@
+---
+title: "Homework Assignment 3: Analyzing Drug Use"
+author: "Ryan Avery and Team Member2"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: pdf_document
+---
+
+
+```{r setup, echo=FALSE}
+library(knitr)
+library(tidyverse)
+library(ROCR)
+library(tree)
+library(maptree)
+library(class)
+library(lattice)
+# set global chunk options: images will be 7x5 inches
+knitr::opts_chunk$set(fig.width=7, fig.height=5)
+options(digits = 4)
+
+
+## indents are for indenting r code as formatted text
+## They may need to be adjusted depending on your OS
+# if your output looks odd, increase or decrease indent
+indent1 = '    '
+indent2 = '        '
+indent3 = '            '
+```
+
+```{r load, echo=FALSE}
+library(tidyverse)
+drug_use <- read_csv('drug.csv',
+col_names = c('ID','Age','Gender','Education','Country','Ethnicity',
+'Nscore','Escore','Oscore','Ascore','Cscore','Impulsive',
+'SS','Alcohol','Amphet','Amyl','Benzos','Caff','Cannabis',
+'Choc','Coke','Crack','Ecstasy','Heroin','Ketamine',
+'Legalh','LSD','Meth','Mushrooms','Nicotine','Semer','VSA'))
+```
+
+1. Logistic Regression
+```{r mutate, indent=indent2}
+drug_use <- drug_use %>% mutate_at(as.ordered, .vars=vars(Alcohol:VSA))
+drug_use <- drug_use %>%
+mutate(Gender = factor(Gender, labels=c("Male", "Female"))) %>%
+mutate(Ethnicity = factor(Ethnicity, labels=c("Black", "Asian", "White",
+"Mixed:White/Black", "Other",
+"Mixed:White/Asian",
+"Mixed:Black/Asian"))) %>%
+mutate(Country = factor(Country, labels=c("Australia", "Canada", "New Zealand",
+"Other", "Ireland", "UK", "USA")))
+```
+    a) 
+```{r cannabis, indent=indent2}
+cannabis_levels <- c("No","Yes")
+drug_use <- drug_use %>% 
+  mutate(recent_cannabis_use = factor(ifelse(Cannabis>='CL3',"Yes","No"))) 
+
+```
+    b)  
+```{r split, out.width='0.4\\linewidth', fig.show='hold', indent=indent1}
+drug_use_subset <- drug_use %>% select(Age:SS, recent_cannabis_use)
+set.seed(1)
+train.indices = sample(1:nrow(drug_use_subset), 1500)
+drug_use_train=drug_use_subset[train.indices,]
+drug_use_test=drug_use_subset[-train.indices,]
+dim(drug_use_train)
+dim(drug_use_test)
+```
+
+  c)
+```{r logreg, out.width='50%', fig.show='hold', indent=indent1}
+logistic.fit = glm(recent_cannabis_use ~ ., data=drug_use_train, family=binomial(link="logit"))
+summary(logistic.fit)
+```
+  d)
+```{r}
+
+probit.fit = glm(recent_cannabis_use ~ ., data=drug_use_train, family=binomial(link="probit"))
+
+plot(x = fitted(logistic.fit), y=fitted(probit.fit), pch=19, cex=0.2)
+abline(a=0, b=1, col="red")
+title("Probit vs Logistic Model")
+
+
+```
+
+```{r}
+
+cloglog.fit = glm(recent_cannabis_use ~ ., data=drug_use_train, family=binomial(link="cloglog"))
+
+plot(x = fitted(logistic.fit), y=fitted(cloglog.fit), pch=19, cex=0.2)
+abline(a=0, b=1, col="red")
+title("cloglog vs Logistic Model")
+
+```
+
+The probit model yields predicted values that are most similar to the logistic model. The probit and cloglog predicted values both exhibit a similar sigmoid pattern when plotted against the logistic values, with higher predicted values than the logistic predictions for values less than about .35 and similar to lower values than logistic predictions for values greater than .4 and less than .9. The cloglog model shows more variance and a more distinct sigmoid curve pattern when plotted against the logistic predictions. Therefore, cloglog looks to estimate systematically larger and smaller probabilities depending at what range you are comparing witht he logistic predictions.
+
+2.
+```{r}
+tree_parameters = tree.control(nobs=nrow(drug_use_train), minsize=10, mindev=1e-3)
+
+weed_tree = tree(formula = recent_cannabis_use ~ ., data=drug_use_train ,control = tree_parameters)
+
+summary(weed_tree)
+
+```
+
+```{r}
+cv=cv.tree(weed_tree,FUN=prune.misclass)
+best.cv = min(cv$size[which(cv$dev == min(cv$dev, na.rm = TRUE)) ])
+cv$size
+print(best.cv)
+print('is the best')
+```
+
+```{r}
+pruned_tree = prune.tree(tree = weed_tree, best = best.cv)
+draw.tree(tree = pruned_tree, size=3, cex=1, nodeinfo=TRUE)
+```
+
+The country variable is the first split.
+
+
+```{r}
+
+pruned.predict.test = predict(pruned_tree, drug_use_test, type="class")
+
+testtable = table(drug_use_test$recent_cannabis_use,pruned.predict.test)
+
+testerror = 1-sum(diag(testtable))/sum(testtable)
+
+testtable
+true_postivies = testtable[2,2]
+true_negatives = testtable[1,1]
+false_postives = testtable[1,2]
+false_negatives = testtable[2,1]
+TPR = true_postivies / (false_postives+true_postivies)
+FPR = false_postives / (true_negatives+false_postives)
+
+print('TPR is')
+TPR
+print('FPR is')
+FPR
+```
+
+
+Problem 3
+
+
+```{r}
+
+prob.test = predict(logistic.fit, drug_use_test, type="response")
+pred.log = prediction(prob.test, drug_use_test$recent_cannabis_use)
+perf.log = performance(pred.log, measure="tpr", x.measure="fpr")
+
+pruned.predict.test = predict(pruned_tree, drug_use_test, type="vector")
+pred = prediction(pruned.predict.test[,2], drug_use_test$recent_cannabis_use)
+perf = performance(pred, measure="tpr", x.measure="fpr")
+plot(perf, col=2,lwd=3, main="ROC Curve: Logistic (Blue) and Pruned Tree (Red) on Test Data")
+par(new=TRUE)
+plot(perf.log, col=4,lwd=3)
+abline(0,1)
+```
+
+The AUC for the Logistic model is .8974, while Decision tree has an AUC of .8526. Logistic model has a higher AUC. 
+```{r}
+auc.log = performance(pred.log , "auc")@y.values
+auc.tree = performance(pred, "auc")@y.values
+
+auc.log
+auc.tree
+```
+
+
+Problem 4
+
+Principal Component Analysis and Heirarchial clustering.
+
+Where do you start....
+
+a)
+```{r,cache=TRUE}
+leukemia_data <- read_csv("leukemia_data.csv")
+```
+```{r}
+
+leukemia_data <-leukemia_data %>%
+mutate(Type = factor(Type))
+t=table(leukemia_data$Type)
+print(t)
+print(t[t==min(t)])
+
+```
+b)
+```{r}
+pr.out=prcomp(select(leukemia_data,-one_of("Type")), scale=TRUE,center=TRUE)
+pr.var=pr.out$sdev ^2
+pve=pr.var/sum(pr.var)
+cumulative_pve = cumsum(pve)
+
+## This will put the next two plots side by side
+par(mfrow=c(1, 2))
+## Plot proportion of variance explained
+plot(pve, type="l", lwd=3)
+plot(cumulative_pve, type="l", lwd=3)
+```
+c)
+```{r}
+
+rainbow_colors <- rainbow(7)
+plot_colors <- rainbow_colors[leukemia_data$Type]
+plot(pr.out$x[,c(1,2)],col=plot_colors , cex = 0.2)
+text(pr.out$x[,c(1,2)],labels =leukemia_data$Type, cex= 0.45 ,col=plot_colors)
+```
+
+Here we can see that T-ALL colored in Dark Blue is the type that is the most clearly seperated in the two reduced components. SEMA3F had the absolute highest loadings.
+```{r}
+head(-sort(-abs(pr.out$rotation[,1])),6)
+```
+
+d)
+```{r}
+
+rainbow_colors <- rainbow(7)
+plot_colors <- rainbow_colors[leukemia_data$Type]
+plot(pr.out$x[,c(1,3)],col=plot_colors , cex = 0.2)
+text(pr.out$x[,c(1,3)],labels =leukemia_data$Type, cex= 0.45 ,col=plot_colors)
+```
+
+e)
+```{r}
+library(ggridges)
+z1=as.tibble(list(PC1=pr.out$x[,1],"Type"=leukemia_data$Type))
+z3=as.tibble(list(PC3=pr.out$x[,3],"Type"=leukemia_data$Type))
+
+
+
+ggplot(z1,aes(x = PC1, y = Type, fill = Type))+
+  geom_density_ridges()
+
+ggplot(z3,aes(x = PC3, y = Type, fill = Type))+
+  geom_density_ridges()
+```
+E2A-PBX1 and Hyperdip50 are asily distinguishable when projected onto the third PC direction as their peaks are clearly seperable from all other types, especially each other. Between the two there is nearly no overlap when projected onto the third PC direction.

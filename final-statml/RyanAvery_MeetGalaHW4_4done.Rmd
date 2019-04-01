@@ -1,0 +1,226 @@
+---
+title: "Homework Assignment 4"
+author: "Ryan Avery and Meet Gala"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: pdf_document
+---
+
+
+```{r setup, echo=FALSE}
+library(knitr)
+# set global chunk options: images will be 7x5 inches
+knitr::opts_chunk$set(fig.width=7, fig.height=5)
+options(digits = 4)
+
+
+## indents are for indenting r code as formatted text
+## They may need to be adjusted depending on your OS
+# if your output looks odd, increase or decrease indent
+indent1 = '    '
+indent2 = '        '
+indent3 = '            '
+```
+
+```{r load, echo=FALSE}
+library(tidyverse)
+library(tree)
+library(randomForest)
+library(gbm)
+library(ROCR)
+library(e1071)
+library(imager)
+```
+
+1. Fundamentals of the bootstrap
+  a) 
+```{r bootstrap, indent=indent2, cache =TRUE}
+
+
+```
+  b) Regression to the mean is the reason you'd expect his end of season percentage to be lower than start of season, as his start of season percentage was abnormally good.
+Below we use bootstrap resampling to get the condifdence interval of the true percentage.
+```{r percentage, indent=indent2, cache=TRUE}
+population = c(rep(0,50),rep(1,51))
+means <- vector()
+for (i in 1:1000){
+xboot <- sample(population, replace = TRUE)
+means[i] <- mean(xboot)
+}
+
+hist(means)
+```
+Confidence Interval
+```{r age-data, out.width='0.4\\linewidth', fig.show='hold', indent=indent1}
+print(quantile(means, probs = c(0.025,0.975)))
+```
+
+2.
+```{r, out.width='50%', fig.show='hold', indent=indent1}
+
+load("faces_array.RData")
+face_mat <- sapply(1:1000, function(i) as.numeric(faces_array[, , i])) %>% t
+plot_face <- function(image_vector) {
+plot(as.cimg(t(matrix(image_vector, ncol=100))), axes=FALSE, asp=1)
+}
+plot_face(faces_array[,,1])
+```
+A)
+```{r}
+plot_face(colMeans(face_mat))
+```
+
+b)scale comparison and Plot the PVE and cumulative
+PVE from the PCA. 
+```{r}
+faces.out.scale=prcomp(face_mat, scale=TRUE)
+faces.out.noscale = prcomp(face_mat, scale=FALSE)
+
+```
+
+```{r}
+faces.var = faces.out.noscale$sdev^2
+pve = faces.var/sum(faces.var)
+plot(pve, xlab="Principal Component", ylab="Proportion of Variance Explained",ylim= c(0,1), type='b')
+title('PVE Plot Faces Not Scaled')
+
+plot(cumsum(pve), xlab="Principal Component ",
+ylab=" Cumulative Proportion of Variance Explained ", ylim=c(0,1), type='b')
+title('PVE Cumulatve PVE Plot')
+
+min(which(cumsum(pve) > .5))
+print("after the fifth Principal Component, 50 percent of the variance is explained")
+```
+
+c) Plotting the first 16 principal components
+```{r}
+for (i in 1:16) {
+  plot_face(faces.out.noscale$rotation[,i])
+}
+```
+ 
+d)  PC 1 primarily describes variation between a face and the background. 
+```{r}
+for (i in head(sort(faces.out.noscale$x[,1]),5)){
+  index = which(i==faces.out.noscale$x[,1])
+  plot_face(faces_array[,,index])
+}
+
+for (i in tail(sort(faces.out.noscale$x[,1]),5)){
+  index = which(i==faces.out.noscale$x[,1])
+  plot_face(faces_array[,,index])
+}
+```
+
+e) PC5 shows variation between features typically associated with male or females. The most apparent one is long hair vs short hair.
+```{r}
+for (i in head(sort(faces.out.noscale$x[,5]),5)){
+  index = which(i==faces.out.noscale$x[,5])
+  plot_face(faces_array[,,index])
+}
+
+for (i in tail(sort(faces.out.noscale$x[,5]),5)){
+  index = which(i==faces.out.noscale$x[,5])
+  plot_face(faces_array[,,index])
+}
+```
+
+PC5 better resolves differences between individuals, particularly those with long hair and short hair. It would be more useful in a facial recognition model with the goal of detecting differences between people. If the goal of the model was to detect any face in an image with many other objects, PC1 might be better. 
+
+f) UNFINISHED
+```{r}
+plot_face(faces_array[,,22])
+```
+
+
+4) 
+```{r}
+drug_use <- read_csv('drug.csv',
+col_names = c('ID','Age','Gender','Education','Country','Ethnicity',
+'Nscore','Escore','Oscore','Ascore','Cscore','Impulsive',
+'SS','Alcohol','Amphet','Amyl','Benzos','Caff','Cannabis',
+'Choc','Coke','Crack','Ecstasy','Heroin','Ketamine','Legalh','LSD',
+'Meth', 'Mushrooms', 'Nicotine', 'Semer','VSA'))
+cannabis_levels <- c("No","Yes")
+drug_use <- drug_use %>% 
+  mutate(recent_cannabis_use = factor(ifelse(Cannabis>='CL3',"Yes","No"))) 
+drug_use_subset <- drug_use %>% select(Age:SS, recent_cannabis_use)
+set.seed(1)
+train.indices = sample(1:nrow(drug_use_subset), 1500)
+drug_use_train=drug_use_subset[train.indices,]
+drug_use_test=drug_use_subset[-train.indices,]
+```
+
+A)
+```{r}
+svmfit=svm(recent_cannabis_use ~ ., data=drug_use_train, kernel="radial", cost=1,scale=TRUE)
+cannabis_pred=predict(svmfit,drug_use_test)
+summary(svmfit)
+table(predict=cannabis_pred, truth=drug_use_test$recent_cannabis_use)
+```
+
+B) The optimal cost is .1. Optimal training error is HOW DO YOU GET TRAINING ERROR?
+```{r}
+
+tune.out=tune(svm,recent_cannabis_use~.,data=drug_use_train,kernel="radial",
+ranges=list(cost=c(.001,.01,.1,1,10,100)), scale=TRUE)
+bestmod=tune.out$best.model
+summary(bestmod)
+print("training error")
+cannabis_pred_train=predict(bestmod,drug_use_train)
+train_table = table(predict=cannabis_pred_train, truth=drug_use_train$recent_cannabis_use)
+train.err = 1 - sum(diag(train_table))/sum(train_table)
+print(train.err)
+print("test error")
+cannabis_pred_test=predict(bestmod,drug_use_test)
+test_table = table(predict=cannabis_pred_test, truth=drug_use_test$recent_cannabis_use)
+test.err = 1 - sum(diag(test_table))/sum(test_table)
+print(test.err)
+```
+
+C)
+
+```{r}
+class_counts = 0
+for (i in 1:200){
+ind = sample(nrow(drug_use_train),size=nrow(drug_use_train), replace = TRUE)
+train_boot = drug_use_train[ind,]
+svmfit=svm(recent_cannabis_use ~ ., data=train_boot, kernel="radial", cost=1,scale=TRUE)
+pred = predict(svmfit, drug_use_test)
+pred = ifelse(pred=="Yes", 1, 0)
+class_counts = class_counts + pred
+}
+
+```
+
+Below are the bootstrapped svm class probabilities for each observation.
+```{r}
+predicted_svm_probs = class_counts/200
+predicted_svm_probs
+```
+
+```{r}
+pred = prediction(predicted_svm_probs, drug_use_test$recent_cannabis_use)
+perf = performance(pred, measure="tpr", x.measure="fpr")
+plot(perf, col=2, lwd=3, main="ROC curve for bootstrapped SVM predicted probabilities on Test Data")
+abline(0,1)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

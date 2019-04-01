@@ -1,0 +1,37 @@
+# US GEOLOGICAL SURVEY
+# DAILY MEAN DISCHARGE DATA
+#
+# Station name  :  NEUSE RIVER NEAR GOLDSBORO, N. C.
+# Station number:  02089000
+# latitude (degrees, minutes, and seconds)...... 352014
+# longitude (degrees, minutes, and seconds)..... 0775951
+# state code.................................... 37
+# county code................................... 191
+# hydrologic unit code.......................... 03020202
+# drainage area (square miles)..................  2399.00
+# contributing drainage area (square miles).....         
+# gage datum (feet above NGVD)..................    42.95
+# WATSTORE parameter code....................... 00060
+# WATSTORE statistic code....................... 00003
+# Discharge is listed in the table in cubic feet per second.
+# 
+# Daily mean discharge data were retrieved from the
+# National Water Information System files called ADAPS.
+# processed into RDB table Fri Jan 20 19:51:20 EST 1995
+# filter version 6
+#
+# Format of table is as follows.
+# Lines starting with the # character are comment lines describing the data
+# included in this file.  The next line is a row of tab-delimited column
+# names that are Date and Discharge.  The next line is a row of tab-delimited
+# data type codes that describe a 10-character-wide date (10d) and an
+# 8-character-wide numeric value for discharge (8n).  All following lines are
+# rows of tab-delimited data values of date (year.month.day) and discharge.
+#
+# NOTE: The header above is from an original file which has
+#       has been further processed by IL-SWR web retrieval
+#       software on Mon Jul  1 14:59:51 EDT 1996.
+#       Dates are now in MM/DD/YYYY format.
+#
+# ----Date Range In File----
+#  1 01/01/1974-12/31/1985
